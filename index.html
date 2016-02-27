@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>登入 | TeamToy Mobile</title>
+
+    <!-- Sets initial viewport load and disables zooming  -->
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+
+    <!-- Makes your prototype chrome-less once bookmarked to your phone's home screen -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+    <!-- Include the compiled Ratchet CSS -->
+    <link href="css/ratchet.css" rel="stylesheet">
+	<link href="css/ratchet-theme-android.css" rel="stylesheet">
+
+    <!-- Include the compiled Ratchet JS -->
+    <script src="js/ratchet.min.js"></script>
+	<script src="js/jquery.min.js"></script>
+	<script src="js/script.js"></script>
+	<script type="text/javascript" src="cordova.js"></script>
+  </head>
+  <body>
+    <!-- Wrap all non-bar HTML in the .content div (this is actually what scrolls) -->
+    <div class="content">
+		<div class="login-form">
+			<div class="content-padded" align="center">
+				<img src="static/image/tt2login.title.png" width="512" height="162">
+				<h1>TeamToy Mobile</h1>
+			</div>
+			<form class="input-group" style="margin-top: 20px">
+			  <div class="input-row">
+				<label>邮箱</label>
+				<input type="email" placeholder="输入邮箱" id="email">
+			  </div>
+			  <div class="input-row">
+				<label>密码</label>
+				<input type="password" placeholder="输入密码" id="password">
+			  </div>
+			</form>
+			<button class="btn btn-positive btn-block btn-outlined" style="margin-top: 20px" onclick="login();void(0);">登入</button>
+		</div>
+    </div>
+	<script type="text/javascript">
+		function setVetically()
+		{
+			$(".login-form").css("marginTop",$(window).height()/2 - $(".login-form").height()/2);
+		}
+		$(window).resize(function(){
+			setVetically();
+		});
+		setVetically();
+	</script>
+  </body>
+</html>
