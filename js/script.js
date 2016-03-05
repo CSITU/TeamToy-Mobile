@@ -1,7 +1,5 @@
 var url = ""; //Change to your TeamToy url
-var is_online = true;
 var db;
-
 function isNull(arg1)
 {
  return !arg1 && arg1!==0 && typeof arg1!=="boolean"?true:false;
@@ -17,25 +15,48 @@ window.addEventListener('push', checkLoginStatus);
 
 document.addEventListener("deviceready", onDeviceReady, false);   
 function onDeviceReady() {
-	document.addEventListener("backbutton", onBackKeyDown, false);                       
+	document.addEventListener("backbutton", onBackKeyDown, false);    
+}
+
+function isModalOpen() {
+	if($("#todo_details").attr('class') == "modal active")
+	{
+		return "#todo_details";
+	}
+	else if($("#add_todo").attr('class') == "modal active")
+	{
+		return "#add_todo";
+	}
+	return false;
 }
 function onBackKeyDown() {
-	showToast("再按一次退出！");
-	document.removeEventListener("backbutton", onBackKeyDown, false);
-    document.addEventListener("backbutton", exitApp, false);
-    var intervalID = window.setInterval(function() {  
-		window.clearInterval(intervalID);  
-        document.removeEventListener("backbutton", exitApp, false);
-        document.addEventListener("backbutton", onBackKeyDown, false);
-    }, 3000);  
+	var Modal;
+	Modal = isModalOpen();
+	if(Modal != false)
+	{
+		$(Modal).removeClass('active');
+	}
+	else
+	{
+		showToast("再按一次退出！");
+		document.removeEventListener("backbutton", onBackKeyDown, false);
+		document.addEventListener("backbutton", exitApp, false);
+		var intervalID = window.setInterval(function() {  
+			window.clearInterval(intervalID);  
+			document.removeEventListener("backbutton", exitApp, false);
+			document.addEventListener("backbutton", onBackKeyDown, false);
+		}, 2000);
+	}
 }
 function exitApp(){  
 	navigator.app.exitApp();  
 }
 
-function showToast(msg, duration) {    
+function showToast(msg, duration) {
+	if(document.getElementById("toast")) document.body.removeChild(document.getElementById("toast"));
     duration = isNaN(duration) ? 2000 : duration;    
-    var m = document.createElement('div');    
+    var m = document.createElement('div');
+	m.setAttribute("id", "toast");
     m.innerHTML = msg;    
     m.style.cssText = "width:60%; min-width:150px; background:#000; opacity:0.5; height:40px; color:#fff; line-height:40px; text-align:center; border-radius:5px; position:fixed; top:70%; left:20%; z-index:999999; font-weight:bold;";    
     document.body.appendChild(m);    
@@ -54,7 +75,12 @@ function logout()
 	logout_clean();
 	change_page('index');
 }
-
+function isOnline()
+{
+	var netstate = navigator.connection.type;
+	if (netstate == Connection.NONE) return false;
+	return true;
+}
 function logout_clean()
 {
 	window.localStorage.clear();
@@ -66,22 +92,45 @@ function logout_clean()
 
 function database_clean()
 {
-	db.transaction( function( tx )
+	tt_confirm( '你确定要清除缓存吗？' , function(evt)
 	{
-		tx.executeSql("DROP TABLE TODO ");
-	}, db_error , function()
-	{
-		showToast('缓存清理完成！');
-	} );
+		db.transaction( function( tx )
+		{
+			tx.executeSql("DROP TABLE TODO ");
+		}, db_error , function()
+		{
+			showToast('缓存清理完成！');
+		} );
+	});
 }
 
+function isToggled(eid)
+{
+	if($(eid).attr('class') == "toggle active")
+	{
+		return true;
+	}
+	else if($(eid).attr('class') == "toggle")
+	{
+		return false;
+	}
+}
 function login()
 {
-	if( !is_online )
+	if(!isOnline())
 	{
-		return change_page( 'todo' );	
-	} 
-
+		showToast("请检查网络连接！");
+		return false;
+	}
+	if(isToggled('#remember_password'))
+	{
+		kset("op_remeberpass",true);
+	}
+	else
+	{
+		kset("op_remeberpass",false);
+	}
+	
 	if( $('#email').val() == '' )
 	{
 		showToast("邮箱不能为空！");
@@ -124,113 +173,202 @@ function change_page( page )
 	location = page + '.html';
 }
 
+function todo_add()
+{
+	var text = $('#todo_text').val();
+	if( text.length < 1 ) return showToast('TODO不能为空~');
+	
+	var is_public = 1;
+	if( isToggled("#private_value") ) is_public = 0;
+	if(!isOnline())
+	{
+		showToast("请检查网络连接！");
+		return false;
+	}
+	get_data("SELECT * FROM TODO WHERE content = ? AND status != 3" , [ text ] , function( data )
+	{
+		console.log(data);
+		
+		if( data != false )
+		{
+			showToast('同样的TODO已存在了哦，先完成了再添加吧');
+			return false;
+		}
+		else
+		{
+			// 先放入本地数据库
+			db.transaction( function( tx )
+			{
+				tx.executeSql("INSERT OR REPLACE INTO TODO (  tid , content , is_star , is_public , is_delete , is_sync , sync_error , status  ) VALUES (  ? , ? , ? , ? , ? , ? , ? , ? )" , 
+				[
+					0 ,
+					text ,
+					0 ,
+					is_public ,
+					0,
+					0,
+					0,
+					1 
+				]
+				
+				);
+			}, db_error , function()
+			{
+				get_data("SELECT last_insert_rowid() as ltid FROM TODO LIMIT 1" , [] , function( ltidinfo )
+				{
+					var ltid = ltidinfo[0].ltid;
+					if( ltid > 0 )
+					{	
+						db.transaction( function( tx )
+						{
+							tx.executeSql("UPDATE TODO SET tid = ? WHERE id = ? " , [ -ltid , ltid ] ); 
+								
+						}, db_error , function()
+						{
+							$('#todo_text').val('');
+							$('#add_todo').removeClass('active');
+							show_local_todo();
+							$.post( url + 'index.php?c=api&a=todo_add' , {'token' : kget('op_token') , 'text':text , 'is_public':is_public  } ,
+							function( data )
+							{
+								console.log( data );
+								if( data.err_code != 0 )
+								{
+									showToast('同步失败');
+									return false;
+								}
+								else
+								{
+									if(  data.data.content != text )
+									{
+										showToast('同步失败');
+										return false;
+									}
+									db.transaction( function( tx )
+									{
+										tx.executeSql("UPDATE TODO SET is_sync = 1 , tid = ? WHERE id = ? " , [ data.data.tid , ltid ] ); 	
+									}, db_error );
+									showToast('操作已同步至云端！');
+									show_local_todo();
+								}
+							});	
+						} );
+					}
+				} );
+			} );
+		}
+	} );
+	
+	
+}
+
 function todo_remove( liid , callback  )
 {
-	var reg = /[0-9]+$/;
-			
-	tid = parseInt( reg.exec( liid ) );
-	if( tid < 1 ) return false;
-	db.transaction( function( tx )
+	tt_confirm( '你确定要把此TODO删除吗？' , function(evt)
 	{
-		tx.executeSql("UPDATE TODO SET is_delete = 1, is_sync = 0 WHERE tid = ? " , [tid]);
-	} , db_error , function()
-	{
-		$('#'+liid).remove();
-		$.post( url + 'index.php?c=api&a=todo_remove' , 
+		if(!isOnline())
 		{
-			'token' : kget('op_token') , 
-			'tid': tid
-		} , function( data )
+			showToast("请检查网络连接！");
+			return false;
+		}
+		var reg = /[0-9]+$/;
+				
+		tid = parseInt( reg.exec( liid ) );
+		if( tid < 1 ) return false;
+		db.transaction( function( tx )
 		{
-			console.log( data );
-		 
-			if( data.err_code != 0 )
+			tx.executeSql("UPDATE TODO SET is_delete = 1, is_sync = 0 WHERE tid = ? " , [tid]);
+		} , db_error , function()
+		{
+			$('#'+liid).remove();
+			$('#todo_details').removeClass('active');
+			$.post( url + 'index.php?c=api&a=todo_remove' , 
 			{
-				showToast('同步失败！');
-			}
-			else
+				'token' : kget('op_token') , 
+				'tid': tid
+			} , function( data )
 			{
-				showToast('操作已同步至云端！');
-				db.transaction( function( tx )
+				console.log( data );
+			 
+				if( data.err_code != 0 )
 				{
-					tx.executeSql("UPDATE TODO SET is_sync = 1 WHERE tid = ? " , [tid]);
-				} , db_error );
-				$('#todo_details').removeClass('active');
-			}
-			
-			if( typeof callback == 'function' ) callback();
-			
-		}  );
-	
-	
+					showToast('同步失败！');
+				}
+				else
+				{
+					showToast('操作已同步至云端！');
+					db.transaction( function( tx )
+					{
+						tx.executeSql("UPDATE TODO SET is_sync = 1 WHERE tid = ? " , [tid]);
+					} , db_error );
+				}
+				
+				if( typeof callback == 'function' ) callback();
+				
+			}  );
+		
+		
+		});
 	});
-	
 }
 
 function todo_done( liid , callback  )
 {
-	var reg = /[0-9]+$/;
-			
-	tid = parseInt( reg.exec( liid ) );
-	if( tid < 1 ) return false;
-	db.transaction( function( tx )
+	tt_confirm( '你确定要把此TODO标记为已完成吗？' , function(evt)
 	{
-		tx.executeSql("UPDATE TODO SET status = 3 , is_sync = 0 WHERE tid = ? " , [tid]);
-	} , db_error , function()
-	{
-		$('#todo_list_done').prepend($('#'+liid));
-		$.post( url + 'index.php?c=api&a=todo_done' , 
+		if(!isOnline())
 		{
-			'token' : kget('op_token') , 
-			'tid': tid
-		} , function( data )
+			showToast("请检查网络连接！");
+			return false;
+		}
+		var reg = /[0-9]+$/;
+				
+		tid = parseInt( reg.exec( liid ) );
+		if( tid < 1 ) return false;
+		db.transaction( function( tx )
 		{
-			console.log( data );
-		 
-			if( data.err_code != 0 )
+			tx.executeSql("UPDATE TODO SET status = 3 , is_sync = 0 WHERE tid = ? " , [tid]);
+		} , db_error , function()
+		{
+			$('#todo_list_done').prepend($('#'+liid));
+			$('#todo_details').removeClass('active');
+			$.post( url + 'index.php?c=api&a=todo_done' , 
 			{
-				showToast('同步失败！');
-			}
-			else
+				'token' : kget('op_token') , 
+				'tid': tid
+			} , function( data )
 			{
-				showToast('操作已同步至云端！');
-				db.transaction( function( tx )
+				console.log( data );
+			 
+				if( data.err_code != 0 )
 				{
-					tx.executeSql("UPDATE TODO SET is_sync = 1 WHERE tid = ? " , [tid]);
-				} , db_error );
-				$('#todo_details').removeClass('active');
-			}
-			
-			if( typeof callback == 'function' ) callback();
-			
-		}  );
-	
-	
+					showToast('同步失败！');
+				}
+				else
+				{
+					showToast('操作已同步至云端！');
+					db.transaction( function( tx )
+					{
+						tx.executeSql("UPDATE TODO SET is_sync = 1 WHERE tid = ? " , [tid]);
+					} , db_error );
+				}
+				
+				if( typeof callback == 'function' ) callback();
+				
+			}  );
+		
+		
+		});
 	});
-	
 }
 
 function show_todo_detail( tid )
 {
-	showToast("加载中...");
-	$.post( url + 'index.php?c=api&a=todo_detail' , 
+	get_data( "SELECT * FROM TODO WHERE tid = '" + tid + "' LIMIT 0,1", [] , function( data )
 	{
-		'token' : kget('op_token') , 
-		'tid': tid
-	} , function( data )
-	{
-		console.log( data );
-	 
-		if( data.err_code != 0 )
-		{
-			showToast('同步失败！');
-		}
-		else
-		{
-			$('#tdetailcontainer').html( $.tmpl( "tdetail_tpl" , {'item':data.data} ) );
-			$('#todo_details').addClass('active');
-		}
-	});
+		$('#tdetailcontainer').html( $.tmpl( "tdetail_tpl" , {'item':data[0]} ) );
+		$('#todo_details').addClass('active');
+	}  );
 }
 function show_local_todo()
 {
@@ -418,4 +556,29 @@ function kget( key  )
 function kremove( key )
 {
 	window.localStorage.removeItem( key );
+}
+
+function tt_confirm( string , callback , title , button  )
+{
+	if( !on_app  )
+	{
+		if(confirm( string ))
+		{
+			if( typeof callback == 'function'  )
+				callback();
+		}
+	}
+	else
+	{
+		if( !title ) title = '系统消息';
+		if( !button ) button = '确定,取消';
+		return navigator.notification.confirm( string , mycallback , title , button );
+		
+		function mycallback( btn )
+		{
+			if( btn == 1 && typeof callback == 'function' )
+				callback();
+		}
+	}
+	
 }

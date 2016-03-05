@@ -13,7 +13,8 @@
 
     <!-- Include the compiled Ratchet CSS -->
     <link href="css/ratchet.css" rel="stylesheet">
-	<link href="css/ratchet-theme-android.css" rel="stylesheet">
+	<link href="css/login-page.css" rel="stylesheet">
+	<link href="css/ratchet-theme-ios.css" rel="stylesheet">
 
     <!-- Include the compiled Ratchet JS -->
     <script src="js/ratchet.min.js"></script>
@@ -39,6 +40,14 @@
 				<input type="password" placeholder="输入密码" id="password">
 			  </div>
 			</form>
+			<ul class="table-view">
+			  <li class="table-view-cell">
+				记住密码
+				<div class="toggle" id="remember_password">
+				  <div class="toggle-handle"></div>
+				</div>
+			  </li>
+			</ul>
 			<button class="btn btn-positive btn-block btn-outlined" style="margin-top: 20px" onclick="login();void(0);">登入</button>
 		</div>
     </div>
@@ -51,6 +60,12 @@
 			setVetically();
 		});
 		setVetically();
+		if(kget("op_remeberpass") && kget("op_email") && kget("op_password"))
+		{
+			$('#remember_password').addClass("active");
+			$('#email').val(kget("op_email"));
+			$('#password').val(kget("op_password"));
+		}
 	</script>
   </body>
 </html>

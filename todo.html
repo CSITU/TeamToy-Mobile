@@ -24,7 +24,8 @@
   </head>
   <body>
 	<header class="bar bar-nav">
-		<a class="icon icon-refresh pull-right" href="javascript:load_todo(true);void(0);"></a>
+		<a class="icon icon-refresh pull-left" href="javascript:load_todo(true);void(0);"></a>
+		<a class="icon icon-edit pull-right" href="#add_todo"></a>
 		<h1 class="title">
 		  TODO
 		</h1>
@@ -61,6 +62,24 @@
 		<ul id="todo_list_done" class="table-view">
 		</ul>
     </div>
+	<div id="add_todo" class="modal">
+	  <header class="bar bar-nav">
+		<a class="icon icon-close pull-right" href="#add_todo"></a>
+		<h1 class="title">添加TODO</h1>
+	  </header>
+	  <div class="content">
+		<input type="text" placeholder="TODO名称" id="todo_text">
+			<ul class="table-view">
+			  <li class="table-view-cell">
+				仅自己可见
+				<div class="toggle" id="private_value">
+				  <div class="toggle-handle"></div>
+				</div>
+			  </li>
+			</ul>
+		  <button class="btn btn-positive btn-block" onclick="todo_add();void(0);">添加TODO</button>
+	  </div>
+	</div>
 	<div id="tdetailcontainer"></div>
 	<script id="tdetail_tpl" type="text/html">
 		<div id="todo_details" class="modal">
@@ -72,7 +91,7 @@
 				<h5>内容</h5>
 				<h3><%=item.content%></h3>
 				<h5>操作</h5>
-				<% if ( item.details.status != 3) {%>
+				<% if ( item.status != 3) {%>
 				<button class="btn btn-positive btn-block" onclick="todo_done('t-<%=item.tid%>');void(0);">完成</button>
 				<% } %>
 				<button class="btn btn-negative btn-block" onclick="todo_remove('t-<%=item.tid%>');void(0);">删除</button>
@@ -96,6 +115,7 @@
 	<% } %>
 	</script>
 	<script type="text/javascript">
+		var on_app = false;
 		function loadPage()
 		{
 			db = window.openDatabase("TTDB", "1.0", "TTDB", 1024*1024);
@@ -106,6 +126,11 @@
 		db = window.openDatabase("TTDB", "1.0", "TTDB", 1024*1024);
 		database_init();
 		load_todo();
+		document.addEventListener("deviceready", onDeviceReady, false);
+		function onDeviceReady()
+		{
+			on_app = true;
+		}
 	</script>
   </body>
 </html>
